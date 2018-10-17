@@ -80,26 +80,28 @@ private:
 
     bool up(int idx)
     {   
-        reset_update(idx);
         auto tmp = m_nodes[idx];
         auto ret = false;
         while (idx != 0){
             auto cmpIdx = (idx - 1) >> 1;
             if (*tmp < *m_nodes[cmpIdx]){
-                set_update(cmpIdx);
+                m_nodes[idx] = m_nodes[cmpIdx];
+                m_nodes[idx]->idx = idx;
                 ret = true;
                 idx = cmpIdx;
                 continue;
             } 
             break;
         }
-        if (ret) move_nodes(tmp);
+        if (ret) {
+            m_nodes[idx] = tmp;
+            m_nodes[idx]->idx = idx;
+        }
         return ret;
     }
 
     bool down(int idx)
     {
-        reset_update(idx); 
         auto tmp = m_nodes[idx];      
         auto cmpIdx = (idx << 1) + 1;
         auto ret = false;
@@ -110,7 +112,8 @@ private:
                 cmpIdx++;
             }
             if (*m_nodes[cmpIdx] < *tmp){
-                set_update(cmpIdx);
+                m_nodes[idx] = m_nodes[cmpIdx];
+                m_nodes[idx]->idx = idx;
                 ret = true;
                 idx = cmpIdx;
                 cmpIdx = (idx << 1) + 1;
@@ -118,7 +121,10 @@ private:
             } 
             break;
         }
-        if (ret) move_nodes(tmp);
+        if (ret) {
+            m_nodes[idx] = tmp;
+            m_nodes[idx]->idx = idx;
+        }
         return ret;
     }
 

@@ -31,29 +31,21 @@ public:
 
     node* pop()
     {
-        swap(0, m_nodes.size() - 1);
-        auto ret = m_nodes.back();
+        auto ret = m_nodes[0];
+        m_nodes[0] = m_nodes.back();
         m_nodes.pop_back();
         down(0);
         return ret;
     }
 
-    void print()
-    {
-        for (auto it : m_nodes){
-            print_info(it);
-        }
-    }
-
     void erase(node *obj)
     {
+        if (obj->idx == m_nodes.size() - 1) return;
         auto id = obj->idx;
-        swap(obj->idx, m_nodes.size() - 1);
+        m_nodes[id] = m_nodes.back();
         m_nodes.pop_back();
-        if (obj->idx == m_nodes.size()) return;
-        auto tmp = m_nodes[id];
-        up(tmp->idx);
-        down(tmp->idx);
+        m_nodes[id]->idx = id;
+        if (!down(id)) up(id);
     }
 
     void reserve(int size){ m_nodes.reserve(size); }
@@ -62,49 +54,108 @@ public:
 
     bool empty() { return m_nodes.size() == 0; }
 
-private:
-    std::vector<node *> m_nodes;
-
-    void swap(int i, int j)
+    void check()
     {
-        auto tmp = m_nodes[i];
-        m_nodes[i] = m_nodes[j];
-        m_nodes[j] = tmp;
-        m_nodes[i]->idx = i;
-        m_nodes[j]->idx = j;
+        for (auto i = 0; (i << 1) + 1 < m_nodes.size(); i++) {
+            auto l = (i << 1) + 1;
+            auto r = l + 1;
+            assert(!(*m_nodes[l] < *m_nodes[i]));
+            if (r < m_nodes.size())
+                assert(!(*m_nodes[r] < *m_nodes[i]));
+        }
     }
 
-    void up(int idx)
+    intrusive_heap() 
     {
+        m_update.resize(21); //level 21 (2^21 nodes);
+    }
+
+private:
+    std::vector<node *> m_nodes;
+    std::vector<int> m_update;
+    int m_update_cnt = 0;
+
+    bool up(int idx)
+    {   
+        reset_update(idx);
+        auto tmp = m_nodes[idx];
+        auto ret = false;
         while (idx != 0){
             auto cmpIdx = (idx - 1) >> 1;
-            if (*m_nodes[idx] < *m_nodes[cmpIdx]){
-                swap(idx, cmpIdx);
+            if (*tmp < *m_nodes[cmpIdx]){
+                set_update(cmpIdx);
+                ret = true;
                 idx = cmpIdx;
                 continue;
             } 
             break;
         }
+        if (ret) move_nodes(tmp);
+        return ret;
     }
 
-    void down(int idx)
+    bool down(int idx)
     {
-        int cmpIdx = (idx << 1) + 1;
-        while (cmpIdx < m_nodes.size())
-        {
-            if (cmpIdx + 1 < m_nodes.size() && (*m_nodes[cmpIdx + 1]) < (*m_nodes[cmpIdx])){
+        reset_update(idx); 
+        auto tmp = m_nodes[idx];      
+        auto cmpIdx = (idx << 1) + 1;
+        auto ret = false;
+        while (cmpIdx < m_nodes.size()) {
+            if (cmpIdx + 1 < m_nodes.size() && 
+                (*m_nodes[cmpIdx + 1]) < (*m_nodes[cmpIdx]))
+            {
                 cmpIdx++;
             }
-            if (*m_nodes[cmpIdx] < *m_nodes[idx]){
-                swap(idx, cmpIdx);
+            if (*m_nodes[cmpIdx] < *tmp){
+                set_update(cmpIdx);
+                ret = true;
                 idx = cmpIdx;
                 cmpIdx = (idx << 1) + 1;
                 continue;
             } 
             break;
         }
+        if (ret) move_nodes(tmp);
+        return ret;
+    }
+
+    __attribute__((always_inline))
+    void reset_update(int idx)
+    {
+        m_update_cnt = 1;
+        m_update[0] = idx;
+    }
+
+    __attribute__((always_inline))
+    void set_update(int idx)
+    {
+        m_update[m_update_cnt] = idx;
+        m_update_cnt++;
+    }
+
+    __attribute__((always_inline))
+    void move_nodes(node *_node)
+    {
+        auto p = 0;
+        while (p + 1 < m_update_cnt){
+            auto id_0 = m_update[p];
+            auto id_1 = m_update[p + 1];
+            m_nodes[id_0] = m_nodes[id_1];
+            m_nodes[id_0]->idx = id_0;
+            p++;
+        }
+        auto dest_id = m_update[p];
+        m_nodes[dest_id] = _node;
+        m_nodes[dest_id]->idx = dest_id;
     }
 };
+
+
+/* ================================================== */
+/*                                                    */
+/*   -------------- UNIT TEST BELOW  --------------   */
+/*                                                    */
+/* ================================================== */
 
 class intrusive_object : public intrusive_heap<intrusive_object>::node
 {
@@ -150,10 +201,10 @@ TEST_F(Heap, vectorBaseErase)
     for (auto it : pushs){
         heap.push(it.v);
     }
-
+    //heap.print();
     GET_TIME_OF_DAY(&t1, NULL);
     c_push = tick(t1, t0);
-    uint64_t erase_times = heap.size() / 10;
+    uint64_t erase_times = heap.size() / 2;
     std::vector<heap_op> erases(pushs.size());
     std::copy(pushs.begin(), pushs.end(), erases.begin());
     for (int i = 0; i<erase_times; i++){
@@ -165,10 +216,12 @@ TEST_F(Heap, vectorBaseErase)
     erases.erase(erases.begin() + erase_times, erases.end());
     GET_TIME_OF_DAY(&t0, NULL);
     for (auto it : erases){
+      //  printf("erase: %d %d\n", it.v->idx, it.v->val);
         heap.erase(it.v);
+      
     }
-
     GET_TIME_OF_DAY(&t1, NULL);
+    heap.check();
     if (TIME_TICK) {
         c_erase = tick(t1, t0);
         printf("Intrusive Heap. time cost: %llu ms\n"\
@@ -213,7 +266,7 @@ TEST_F(Heap, vectorBaseSort)
     std::vector<heap_op> pushs, pops;
     std::vector<intrusive_object *> arr;
     auto cmp =  [](intrusive_object *a, intrusive_object *b){
-        return a->val >= b->val;
+        return a->val > b->val;
     } ;
     auto make_test = [&](std::vector<heap_op> &pushs, std::vector<heap_op> &pops)
     {
@@ -238,7 +291,9 @@ TEST_F(Heap, vectorBaseSort)
     struct timeval t0, t1;
     GET_TIME_OF_DAY(&t0, NULL);
     for (auto it : pushs){
+        //printf("push: %d\n", it.v->val);
         heap.push(it.v);
+      //  heap.print();
     }
     GET_TIME_OF_DAY(&t1, NULL);
     c_push = tick(t1, t0);
@@ -247,6 +302,7 @@ TEST_F(Heap, vectorBaseSort)
     while (!heap.empty()){
         auto ret = static_cast<intrusive_object *>(heap.pop());
         if (!TIME_TICK){
+            printf("pop: %d\n", ret->val);
             judge.push_back(ret->val);
         }
     }

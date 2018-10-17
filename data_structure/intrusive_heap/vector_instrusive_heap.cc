@@ -40,11 +40,14 @@ public:
 
     void erase(node *obj)
     {
-        if (obj->idx == m_nodes.size() - 1) return;
+        if (obj->idx == m_nodes.size() - 1) {
+            m_nodes.pop_back();
+            return;
+        }
         auto id = obj->idx;
         m_nodes[id] = m_nodes.back();
-        m_nodes.pop_back();
         m_nodes[id]->idx = id;
+        m_nodes.pop_back();
         if (!down(id)) up(id);
     }
 

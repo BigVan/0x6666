@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include "gtest/gtest.h"
 
+
 #define COUNT 10000
 #define RAND_LIMIT 100000000
 
@@ -17,11 +18,10 @@
 #define GET_TIME_OF_DAY(obj, PTR) \
     if (TIME_TICK) gettimeofday(obj, PTR);
 
-#define LOG_INFO(arg...) {}
-#define LOG_DEBUG(arg...) {}
-
-
-using namespace std;
+#include "alog.h"
+#define log_output_level 1
+//#define LOG_INFO(arg...) {}
+//#define LOG_DEBUG(arg...) {}
 
 template<typename T>
 class intrusive_skiplist
@@ -30,7 +30,8 @@ public:
     class node
     {
     public:
-        vector<node *> m_forwards{};
+        std::vector<node *> m_forwards{};
+        std::vector<node *> m_backwards{};
         bool operator <(const node &rhs)
         {
             return *(T*)this < *(T*)&rhs;
@@ -39,12 +40,17 @@ public:
         {
             return *(T*)this == *(T*)&rhs;
         }
-        void set_forward(size_t level, node *obj)
+        void set_link(size_t level, node *obj)
         {
             if (level >= this->m_forwards.size()) {
-                this->m_forwards.resize(level + 1);               
+                this->m_forwards.resize(level + 1);
             }
             this->m_forwards[level] = obj;
+            if (obj == nullptr) return;
+            if (level >= obj->m_backwards.size()){
+                obj->m_backwards.resize(level + 1);
+            }
+            obj->m_backwards[level] = this;
         }
     };
 
@@ -55,16 +61,10 @@ public:
 
     int erase(node *node) 
     {
-        auto ret = locate(node);
-        if (!(*ret == *node)) return -1;
-        for (auto i = 0; i <= m_max_level; i++){
-            if (m_update[i]->m_forwards[i] != node) break;
+        for (auto i = 0; i < node->m_forwards.size(); i++) {
+            auto prev = node->m_backwards[i];
             auto next = node->m_forwards[i];
-            if (m_update[i] == m_header && next == nullptr) {
-                m_max_level = i - 1;
-                break;
-            }
-            m_update[i]->m_forwards[i] = next;            
+            prev->set_link(i, next);
         }
         return 0;
     }
@@ -86,13 +86,13 @@ public:
         if (randLevel > m_max_level) {
             randLevel = ++m_max_level;
             m_update.push_back(m_header);
-            m_header->set_forward(m_max_level, nullptr);
+            m_header->set_link(m_max_level, nullptr);
             LOG_DEBUG("level increased. (`)", m_max_level);
         }
         for (auto i = randLevel; i >= 0; i--){
             //node->m_forwards[i] = m_update[i]->m_forwards[i];
-            node->set_forward(i, m_update[i]->m_forwards[i]);
-            m_update[i]->set_forward(i, node);
+            node->set_link(i, m_update[i]->m_forwards[i]);
+            m_update[i]->set_link(i, node);
         }
 
     }
@@ -102,10 +102,10 @@ public:
         LOG_DEBUG("PRINT LIST STRUCTURE");
         for (auto i = m_max_level; i >= 0; i--){
             auto p = m_header;
-            string info = "h ";
+            std::string info = "h ";
             while (p){
                 if (p != m_header) {
-                    info += to_string(((T*)p)->val) + " ";
+                    info += std::to_string(((T*)p)->val) + " ";
                 }
                 p = p->m_forwards[i];
             }
@@ -118,7 +118,7 @@ public:
     {
         srand(time(0));
         m_header = new node();
-        m_header->set_forward(0, nullptr);
+        m_header->set_link(0, nullptr);
     }
 
     ~intrusive_skiplist()
@@ -129,9 +129,9 @@ public:
 private:
     node *m_header;
     int m_max_level = 0;  
-    vector<node *> m_update;
+    std::vector<node *> m_update;
     const int MAX_LEVEL_LIMIT = 32; 
-    const int LEVEL_UP_RATIO = 3;
+    const int LEVEL_UP_RATIO = 2;
 
     node* locate(node *node)
     {
@@ -148,6 +148,8 @@ private:
         return p;
     }
 };
+
+/* ====================== Unit Test Below ========================= */
 
 class intrusive_object : public intrusive_skiplist<intrusive_object>::node
 {
@@ -167,10 +169,10 @@ public:
 class skiplist_test : public ::testing::Test
 {
 public:
-    static const int _LIST_SIZE = 15;
+    static const int _LIST_SIZE = 35;
     static const int _RAND_LIMIT = 100;
     static const int _SEARCH_CNT = 20;
-    static const int _ERASE_CNT = 5;
+    static const int _ERASE_CNT = 15;
 
     static uint64_t tick(const timeval &t1, const timeval &t0)
     {
@@ -183,9 +185,11 @@ TEST_F(skiplist_test, test0)
     int n = skiplist_test::_LIST_SIZE;
     int randLimit = skiplist_test::_RAND_LIMIT;
     intrusive_skiplist<intrusive_object> list;
+    std::vector<intrusive_object *> items{};
     for (int i = 0; i < n; i++){
         auto val = rand() % randLimit;
-        list.insert(new intrusive_object(val));
+        items.push_back(new intrusive_object(val));
+        list.insert(items.back());
     }
     list.print();
     for (auto i = 0; i < skiplist_test::_SEARCH_CNT; i++){
@@ -194,10 +198,12 @@ TEST_F(skiplist_test, test0)
         auto ret = static_cast<intrusive_object*>(list.lowerbound(&obj));
         if (ret == nullptr) continue;
         LOG_INFO("lowerbound of `: `", val, ret->val);
-        if (val == ret->val){
-            LOG_INFO("erase `", val);
-            list.erase(ret);
-        }
+        list.print();
+    }
+    std::random_shuffle(items.begin(), items.end());
+    for (auto i = 0; i< skiplist_test::_ERASE_CNT; i++) {
+        LOG_INFO("erase: `", items[i]->val);
+        list.erase(items[i]);
         list.print();
     }
     LOG_INFO("task finish.");
@@ -210,7 +216,7 @@ struct cmp{
     };
 
 
-void lb(int s, set<intrusive_object *, cmp> &stl, vector<intrusive_object *> &data){
+void lb(int s, std::set<intrusive_object *, cmp> &stl, std::vector<intrusive_object *> &data){
     
     for (int i = 0; i < s; i++){
         auto ret = stl.lower_bound(data[i]);
@@ -223,10 +229,9 @@ void lb(int s, set<intrusive_object *, cmp> &stl, vector<intrusive_object *> &da
 
 TEST_F(skiplist_test, vs_stl_set)
 {
-    vector<intrusive_object *> data;
-    vector<intrusive_object> search;
+    std::vector<intrusive_object *> data;
    
-    set<intrusive_object *, cmp> stl;
+    std::set<intrusive_object *, cmp> stl;
     intrusive_skiplist<intrusive_object> list;
     int n = 500000, s = n/5;
     int randLimit = 100000000;
@@ -234,10 +239,9 @@ TEST_F(skiplist_test, vs_stl_set)
         auto val = rand() % randLimit;
         data.push_back(new intrusive_object(val));
     }
-    for (auto i = 0; i < s; i++){
-        auto val = rand() % randLimit;
-        search.push_back(intrusive_object(val));
-    }
+    auto search = data;
+    std::random_shuffle(search.begin(), search.end());
+    search.erase(search.begin() + s, search.end());
     struct timeval t0, t1;
     
     GET_TIME_OF_DAY(&t0, NULL);
@@ -255,10 +259,10 @@ TEST_F(skiplist_test, vs_stl_set)
     GET_TIME_OF_DAY(&t1, NULL);
     auto c_set_insert = skiplist_test::tick(t1, t0);
 
-    vector<int> ans(s);
+    std::vector<int> ans(s);
     GET_TIME_OF_DAY(&t0, NULL);
     for (int i = 0; i < s; i++){
-        auto ret = static_cast<intrusive_object*>(list.lowerbound(&search[i]));
+        auto ret = static_cast<intrusive_object*>(list.lowerbound(search[i]));
         if (ret) ans[i] = ret->val;
         else ans[i] = -1;
     }
@@ -267,7 +271,7 @@ TEST_F(skiplist_test, vs_stl_set)
     
     GET_TIME_OF_DAY(&t0, NULL);
     for (int i = 0; i < s; i++){
-        /* auto ret = */ stl.lower_bound(&search[i]);
+        /* auto ret = */ stl.lower_bound(search[i]);
         // if (ret != stl.end())
         //     assert((*ret)->val == ans[i]); 
        // LOG_INFO("` `", ans[i],  (*ret)->val );
@@ -279,16 +283,15 @@ TEST_F(skiplist_test, vs_stl_set)
 
     GET_TIME_OF_DAY(&t0, NULL);
     for (int i = 0; i < s; i++){
-        auto ret = static_cast<intrusive_object*>(list.lowerbound(&search[i]));
-        if (ret) { list.erase(ret); }
+        list.erase(search[i]);
     }
     GET_TIME_OF_DAY(&t1, NULL);
     auto c_list_erase = skiplist_test::tick(t1, t0); 
 
     GET_TIME_OF_DAY(&t0, NULL);
     for (int i = 0; i < s; i++){
-       auto ret = stl.lower_bound(&search[i]);
-        if (ret != stl.end() && (*ret)->val == search[i].val) { stl.erase(ret); }
+       auto ret = stl.lower_bound(search[i]);
+        if (ret != stl.end() && (*ret)->val == search[i]->val) { stl.erase(ret); }
     }
     GET_TIME_OF_DAY(&t1, NULL);
     auto c_stl_erase = skiplist_test::tick(t1, t0);
@@ -306,7 +309,7 @@ TEST_F(skiplist_test, vs_stl_set)
 
 int main(int argc, char **argv)
 {
-    int seed = 153900615;//time(0);
+    int seed = /* 153900615;// */time(0);
     srand(seed);
 	::testing::InitGoogleTest(&argc, argv);	
 	auto ret = RUN_ALL_TESTS();

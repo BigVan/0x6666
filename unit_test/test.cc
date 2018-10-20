@@ -1,80 +1,71 @@
 #include "test.h"
+#include "../tools/lock.cc"
 
-// class ConcurrencyTest : public ::testing::Test
-// {
-// public:
-
-
-//     void increment() 
-//     {
-//         RWLock lock(m_mtx, RWLock::WRITE);
-//         value++;
-//     }
-    
-//     int get_value()
-//     { 
-//         RWLock lock(m_mtx);
-//         return value;   
-//     }    
-    
-// private:
-//     SharedLock m_mtx;
-//     int value = 0;
-// };
-
-// TEST_F(ConcurrencyTest, rwlock/* rwlock */)
-// {
-//     std::mutex mtx;
-//     std::vector<std::thread> pool{};
-    
-//     for (auto i = 0; i < 3; i++){
-//         for (int i = 0; i < 10; i++)
-//             pool.emplace_back([&]() { increment(); });
-//         for (auto j = 0; j < 10; j++){
-//             std::thread read([&](){
-//                 usleep(100);
-//                 std::lock_guard<std::mutex> lck(mtx);
-//                 std::cout << get_value() << '\n';
-//             });
-//             read.detach();
-//         }
-//         // usleep(10000);           
-//     }       
-//     for (auto &thd : pool)
-//         thd.join();    
-//     // {
-//     //     std::lock_guard<std::mutex> lck(mtx);
-//     //     printf("wait.\n");
-//     // }
-//     // thread1.join();
-//     // thread2.join();
-    
-// }
-
-template<typename T1, typename T2>
-class Pair
+class LockTest : public ::testing::Test
 {
 public:
-    Pair(){};
-    T1& first() const
+    void SetUp() override
     {
-        return *(T1*)m_val;
+        int size = 10000;
+        int rand_limit = 1000000;
+        for (int i = 0; i < size; i++){
+            data.push_back(rand() % rand_limit);
+            val.push_back(rand() % rand_limit);
+        }
     }
-    T2& second() const
+
+    void lowerbound()
     {
-        return *(T2*)(m_val+sizeof(T1));
+        int writers = 30;
+        int readers = 100;
+        std::set<uint64_t> items{};
+        std::vector<std::thread> pool;
+        for (int i = 0; i < writers; i++){
+            pool.emplace_back([&](){
+                for (auto it : data){
+                    Lock lock(m_mtx);
+                    items.insert(it);
+                }
+            });
+        }
+        for (auto i = 0; i < readers; i++) {
+            pool.emplace_back( [&](){
+                for (auto it : val) {
+                    Lock lock(m_mtx, Lock::READ);    
+                    auto ret = items.lower_bound(it);
+                }
+            });
+        }
+        for (auto &thd : pool) thd.join();
     }
-private:
-    char m_val[sizeof(T1) + sizeof(T2)];
+
+    ILock *m_mtx = nullptr;
+    std::vector<uint64_t> data{};
+    std::vector<uint64_t> val{};
+
 };
+
+TEST_F(LockTest, shared_lock_set)
+{
+    m_mtx = create_shared_lock();
+    lowerbound();
+    delete m_mtx;
+}
+
+TEST_F(LockTest, mutex_lock_set)
+{
+    m_mtx = create_mutex_lock();
+    lowerbound();
+    delete m_mtx;
+}
+
 
 int main(int argc, char **argv)
 {
-    Pair<int, double> obj;
-    // int seed = /* 153900615;// */time(0);
-    // srand(seed);
-	// ::testing::InitGoogleTest(&argc, argv);	
-	// auto ret = RUN_ALL_TESTS();
-	//return ret;
+    int seed = 153900615;//time(0);
+    srand(seed);
+	::testing::InitGoogleTest(&argc, argv);	
+	auto ret = RUN_ALL_TESTS();
+	return ret;
     return 0;
 }

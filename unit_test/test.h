@@ -11,7 +11,10 @@
 #include <shared_mutex>
 #include <thread>
 #include <mutex>
+#include <algorithm>
 #include <iostream>
-//#include "gtest/gtest.h"
+#include <assert.h>
+#include "gtest/gtest.h"
 
-//#include "rw_lock.h"
+
+#include "tools/lock.h"

@@ -5,6 +5,7 @@ class MutexLock : public ILock
 public:
 
     MutexLock(){};
+    ~MutexLock(){};
     MutexLock& operator = (const MutexLock &obj) = delete;
     MutexLock(const MutexLock &obj) = delete;
 
@@ -13,11 +14,16 @@ public:
         m_mtx.lock();
         return 0;
     }
+    virtual bool try_lock() override
+    {
+        return m_mtx.try_lock();
+    }
     virtual int unlock() override
     {
         m_mtx.unlock();
         return 0;
     }
+    __attribute__((always_inline))
     virtual bool is_shared() const override 
     {
         return false;
@@ -48,6 +54,7 @@ public:
         if (m_readers.fetch_sub(1) == 1) m_mtx.unlock();
         return 0;
     }
+    __attribute__((always_inline))
     bool is_shared() const override 
     {
         return true;

@@ -3,6 +3,9 @@
 #include "data_structure/intrusive_skiplist/concurrent_intrusive_skiplist.h"
 #include "../tools/lock.cc"
 
+#define LOG_INFO(arg...) {}
+#define LOG_DEBUG(arg...) {}
+
 #define TIME_TICK true
 #define GET_TIME_OF_DAY(obj, PTR) \
     if (TIME_TICK) gettimeofday(obj, PTR);
@@ -132,7 +135,7 @@ TEST_F(skiplist_test, vs_stl_set)
    
     std::set<intrusive_object *, cmp> stl;
     intrusive_skiplist<intrusive_object> list;
-    int n = 1<<20, s = n/5;
+    int n = 1<<16, s = n/5;
     int randLimit = 100000000;
     for (auto i = 0; i < n; i++){
         auto val = rand() % randLimit;
@@ -177,7 +180,6 @@ TEST_F(skiplist_test, vs_stl_set)
     }
     //lb(s, stl, data);
     GET_TIME_OF_DAY(&t1, NULL);
-    LOG_INFO("` ` | ` `", t0.tv_sec, t0.tv_usec, t1.tv_sec, t1.tv_usec);
     auto c_set_lb = skiplist_test::tick(t1, t0);
 
     GET_TIME_OF_DAY(&t0, NULL);
@@ -207,10 +209,40 @@ TEST_F(skiplist_test, vs_stl_set)
 
 TEST_F(skiplist_test, concurrent)
 {
+    std::vector<concurrent_intrusive_object *> data1;
+    concurrent_intrusive_skiplist<concurrent_intrusive_object> list1;
+    int n = 1 << ((rand() % 8 + 10));
+    int thread_count = 1<<(rand() % 6 + 1);
+    int randLimit = 10000000;
+    for (auto i = 0; i < n; i++){
+        auto val = rand() % randLimit;
+        data1.push_back(new concurrent_intrusive_object(val));
+    }
+    std::vector<std::thread> pool;
+    int cnt = n / thread_count;
+    struct timeval t0, t1;
+    printf("insert %d items into concurrent-skiplist.\n", n);
+    printf("launch %d threads (%d items per thd)\n", thread_count, cnt);
+    GET_TIME_OF_DAY(&t0, NULL);
+    for (int i = 0; i < thread_count; i++){
+        pool.emplace_back([&, i](){
+            for (auto j = i * cnt; j < (i + 1) * cnt; j++){
+                list1.insert(data1[j]);
+            }
+        });
+    }
+    for (auto &thd : pool) thd.join();
+    GET_TIME_OF_DAY(&t1, NULL);
+    auto c1 = skiplist_test::tick(t1, t0);
+    printf("done.(%llu ms)\n", c1/1000);
+}
+
+TEST_F(skiplist_test, concurrent_perf)
+{
     std::vector<intrusive_object *> data0;
     std::vector<concurrent_intrusive_object *> data1;
     intrusive_skiplist<intrusive_object> list0;
-    concurrent_intrusive_skiplist<concurrent_intrusive_object> list1;
+    concurrent_intrusive_skiplist<concurrent_intrusive_object> list1, list2;
     //int n = 500000, s = n/5;
     int n = 1<<20;
     int thread_count = 8;
@@ -245,10 +277,15 @@ TEST_F(skiplist_test, concurrent)
     GET_TIME_OF_DAY(&t1, NULL);
     auto c1 = skiplist_test::tick(t1, t0);
     printf("done.(%llu ms)\n", c1/1000);
-
     printf("Speedup ratio = %llu / %llu = %.2lf\n", c0, c1, (double)c0/c1);
+    GET_TIME_OF_DAY(&t0, NULL);
+    for (int i = 0; i < n; i++){
+        list2.insert(data1[i]);
+    }
+    GET_TIME_OF_DAY(&t1, NULL);
+    c1 = skiplist_test::tick(t1, t0);
+    printf("done.(%llu ms)\n", c1/1000);
 }
-
 
 int main(int argc, char **argv)
 {

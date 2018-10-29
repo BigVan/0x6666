@@ -11,15 +11,15 @@
 // #include "gtest/gtest.h"
 
 
-#define COUNT 10000
-#define RAND_LIMIT 100000000
+// #define COUNT 10000
+// #define RAND_LIMIT 100000000
 
-#define TIME_TICK true
-#define GET_TIME_OF_DAY(obj, PTR) \
-    if (TIME_TICK) gettimeofday(obj, PTR);
+// #define TIME_TICK true
+// #define GET_TIME_OF_DAY(obj, PTR) \
+//     if (TIME_TICK) gettimeofday(obj, PTR);
 
-// #include "alog.h"
-// #define log_output_level 1
+// // #include "alog.h"
+// // #define log_output_level 1
 #define LOG_INFO(arg...) {}
 #define LOG_DEBUG(arg...) {}
 
@@ -130,8 +130,8 @@ private:
     node *m_header;
     int m_max_level = 0;  
     std::vector<node *> m_update;
-    const int MAX_LEVEL_LIMIT = 32; 
     const int LEVEL_UP_RATIO = 2;
+    const int MAX_LEVEL_LIMIT = 32;
 
     node* locate(node *node)
     {

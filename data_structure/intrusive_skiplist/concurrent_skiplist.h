@@ -9,11 +9,14 @@
 #include <string>
 #include <sys/time.h>
 #include "../../tools/lock.h"
+#include <random>
 
 template<typename T>
 class concurrent_intrusive_skiplist
 {
 public:
+    static const int MAX_LEVEL_LIMIT = 32;
+
     class node
     {
     public:
@@ -22,34 +25,33 @@ public:
         // std::vector<node *> m_backwards{};
         node(): m_shared_lock(create_shared_lock())
         {
-            m_forwards.resize(32);
+            m_forwards.resize(concurrent_intrusive_skiplist::MAX_LEVEL_LIMIT);
         }
-        
+        __attribute__((always_inline))
         bool operator <(const node &rhs)
         { 
-            Lock lck(m_shared_lock, Lock::READ);
+            // Lock lck(m_shared_lock, Lock::READ);
             return *(T*)this < *(T*)&rhs;
         }
+        __attribute__((always_inline))
         bool operator ==(const node &rhs)
         {
-            Lock lck(m_shared_lock, Lock::READ);
+            // Lock lck(m_shared_lock, Lock::READ);
             return *(T*)this == *(T*)&rhs;
         }
+        __attribute__((always_inline))
         void set_link(size_t level, node *obj)
         {
             Lock lock(m_shared_lock);
-            if (level >= this->m_forwards.size()) {
-                //tag = flg.test_and_set();
-                printf("resize\n");
-                this->m_forwards.resize(level + 1); //并发时触发resize可能会导致访存异常
-                printf("resize done.\n");
-
-            }
+            // if (level >= this->m_forwards.size()) {
+            //     this->m_forwards.resize(level + 1); //并发时触发resize可能会导致访存异常
+            // }
             this->m_forwards[level] = obj;
         }
+        __attribute__((always_inline))
         node* get_forwards(int i)
         {
-            Lock lock(m_shared_lock, Lock::READ);
+       //     Lock lck(m_shared_lock, Lock::READ);
             return m_forwards[i];
         }
         ~node()
@@ -77,46 +79,55 @@ public:
     {
         auto max_level = 0;
         std::vector<node *> update;
+        node *p = nullptr;
         update.resize(MAX_LEVEL_LIMIT);
         {
-            Lock shared(m_lock, Lock::READ);
-            node *p = m_header;
+            // Lock shared(m_lock, Lock::READ);
+            p = m_header;
             max_level = m_max_level.load();
-            for (int i = max_level; i >= 0; i--){
-                node *next = nullptr;
-                {
-                    Lock lock(p->m_shared_lock, Lock::READ);
-                    next = p->get_forwards(i);
-                }
-                while ( next != nullptr){
-                    // Lock lock(next->m_shared_lock, Lock::READ);
-                    if (!(*next < *item)) {
-                        break;
-                    }
-                    p = next;
-                    next = p->get_forwards(i); //p->m_forwards[i];
-                }
-                update[i] = p;
+        }
+        for (int i = max_level; i >= 0; i--){
+            node *next = nullptr;
+            bool ok = false;
+            {
+                Lock lock(p->m_shared_lock, Lock::READ);
+                next = p->m_forwards[i];// p->get_forwards(i);
+                ok = (next != nullptr);
             }
+            while ( ok /* next != nullptr */){
+                Lock lock(next->m_shared_lock, Lock::READ);
+                if (!(*next < *item)) {
+                    break;
+                }
+                p = next;
+                next =/*  p->get_forwards(i); */ p->m_forwards[i];
+                ok = (next != nullptr);
+            }
+            update[i] = p;
         }
         int randLevel = 0;
-        {
-            Lock mutex(m_lock);
-            while (randLevel <= max_level && !(rand() % LEVEL_UP_RATIO)) randLevel++;
-            if (randLevel > MAX_LEVEL_LIMIT) {
-                randLevel = MAX_LEVEL_LIMIT;
+        auto rand = [=](){
+            static thread_local std::mt19937 generator;
+            std::uniform_int_distribution<int> distribution(0, 1024);
+            return distribution(generator) % LEVEL_UP_RATIO;
+        };
+        while (randLevel <= max_level && !rand()) randLevel++;
+        if (randLevel > MAX_LEVEL_LIMIT) {
+            randLevel = MAX_LEVEL_LIMIT;
+        }
+        if (randLevel > max_level) {
+            
+            if (randLevel > m_max_level.load()){
+                max_level = m_max_level.fetch_add(1) + 1;
+                m_header->set_link(max_level, nullptr);
             }
-            if (randLevel > max_level) {
-                if (randLevel > m_max_level.load()){
-                    max_level = m_max_level.fetch_add(1) + 1;
-                    assert(max_level == randLevel);
-                    m_header->set_link(max_level, nullptr);
-                }
-                update[randLevel] = m_header;
-            }
+            update[randLevel] = m_header;
         }
         for (auto i = randLevel; i >= 0; i--){
-            item->set_link(i, update[i]->get_forwards(i));
+            {
+                Lock shared(update[i]->m_shared_lock, Lock::READ);
+                item->set_link(i, update[i]->/* get_forwards(i) */m_forwards[i]);
+            }
             update[i]->set_link(i, item);
         }
     }
@@ -167,7 +178,6 @@ private:
     ILock *m_lock ;//= nullptr;
     node *m_header;
     std::atomic_int8_t m_max_level;
-    const int MAX_LEVEL_LIMIT = 32;
     const int LEVEL_UP_RATIO = 2;
 
     node* locate(node *node/* , vector<node *> *update */)
@@ -175,11 +185,18 @@ private:
         auto p = m_header;
         auto ret = m_header;
         for (int i = m_max_level.load(); i >= 0; i--){
-            p = ret;
-            while (p && (p == m_header || *p < *node)) {
-                ret = p;
+            bool ok = false;
+            {
+                Lock lock(ret->m_shared_lock, Lock::READ);
+                p = ret;
+                ok = (p != nullptr || p == m_header);
+            }
+            while (ok) {
                 Lock lock(p->m_shared_lock, Lock::READ);
-                p = p->m_forwards[i];
+                if  (!(*p < *node)) break;
+                ret = p;
+                p =p->m_forwards[i];
+                ok = (p != nullptr || p == m_header);
             }
             // if (update) update[i] = ret;
         }

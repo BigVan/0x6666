@@ -17,6 +17,7 @@
 class ILock
 {
 public:
+    virtual ~ILock(){};
     virtual int lock() = 0;
     virtual int unlock() = 0;
     virtual int lock_shared() = 0;

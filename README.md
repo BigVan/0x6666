@@ -9,20 +9,20 @@ __This repo is about some essential techniques in programming__
 
       - base on linked-list.
           - 支持erase.
-        - base on vector
+      - base on vector
           - random data性能接近stl::heap, items with same value性能吊打stl.
           - 支持erase.
 
  - __Intrusive Skiplist__
 
-       - skiplist 普通侵入式跳表的实现
-       - concurrent_skiplist 支持并发的侵入式跳表 ( 配合tools/lock )
-            - TODO. 当前仅支持并发插入，下一步增加erase
+      - skiplist 普通侵入式跳表的实现
+      - concurrent_skiplist 支持并发的侵入式跳表 ( 配合tools/lock )
+          - TODO. 当前仅支持并发插入，下一步增加erase
 
 
-__性能对比：__
+__Performance__
 
-__base line: 2945ms__  12 vCPU in Alibaba-Cloud ECS _( insert 1048576 items into skiplist.)_
+__Base line: 2945ms__  12 vCPU in Alibaba-Cloud ECS _( insert 1048576 items into skiplist.)_
 
 | threads |  concurrent skiplist | speed ratio |
 | :-----: |  :-----------------: | :---------: |

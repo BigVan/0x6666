@@ -61,7 +61,7 @@ public:
     }
 
 private:
-    std::atomic_int m_readers;
+    std::atomic<int> m_readers;
 };
 
 ILock *create_shared_lock(){ return new SharedLock(); }

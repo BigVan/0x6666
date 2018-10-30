@@ -22,7 +22,6 @@ public:
     public:
         ILock *m_shared_lock = nullptr;
         std::vector<node *> m_forwards;//{};
-        // std::vector<node *> m_backwards{};
         node(): m_shared_lock(create_shared_lock())
         {
             m_forwards.resize(concurrent_intrusive_skiplist::MAX_LEVEL_LIMIT);
@@ -82,7 +81,6 @@ public:
         node *p = nullptr;
         update.resize(MAX_LEVEL_LIMIT);
         {
-            // Lock shared(m_lock, Lock::READ);
             p = m_header;
             max_level = m_max_level.load();
         }
@@ -177,7 +175,7 @@ public:
 private:
     ILock *m_lock ;//= nullptr;
     node *m_header;
-    std::atomic_int8_t m_max_level;
+    std::atomic<int8_t> m_max_level;
     const int LEVEL_UP_RATIO = 2;
 
     node* locate(node *node/* , vector<node *> *update */)

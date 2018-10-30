@@ -8,20 +8,6 @@
 #include <memory>
 #include <string>
 #include <sys/time.h>
-// #include "gtest/gtest.h"
-
-
-// #define COUNT 10000
-// #define RAND_LIMIT 100000000
-
-// #define TIME_TICK true
-// #define GET_TIME_OF_DAY(obj, PTR) \
-//     if (TIME_TICK) gettimeofday(obj, PTR);
-
-// // #include "alog.h"
-// // #define log_output_level 1
-#define LOG_INFO(arg...) {}
-#define LOG_DEBUG(arg...) {}
 
 template<typename T>
 class intrusive_skiplist
@@ -71,7 +57,9 @@ public:
 
     void insert(node *node)
     {
-        LOG_DEBUG("node: `", ((T*)node)->val);
+#ifdef __DEBUG
+        printf("node: %d\n", ((T*)node)->val);
+#endif
         auto p = m_header;
         m_update.resize(m_max_level + 1);
         for (int i = m_max_level; i >= 0; i--){
@@ -87,7 +75,9 @@ public:
             randLevel = ++m_max_level;
             m_update.push_back(m_header);
             m_header->set_link(m_max_level, nullptr);
-            LOG_DEBUG("level increased. (`)", m_max_level);
+#ifdef __DEBUG
+            printf("level increased. (`)", m_max_level);
+#endif
         }
         for (auto i = randLevel; i >= 0; i--){
             //node->m_forwards[i] = m_update[i]->m_forwards[i];
@@ -99,7 +89,7 @@ public:
 
     void print()
     {
-        LOG_DEBUG("PRINT LIST STRUCTURE");
+        printf("PRINT LIST STRUCTURE\n");
         for (auto i = m_max_level; i >= 0; i--){
             auto p = m_header;
             std::string info = "h ";
@@ -165,14 +155,3 @@ public:
         return val == rhs.val;
     }
 };
-
-
-
-// int main(int argc, char **argv)
-// {
-//     int seed = /* 153900615;// */time(0);
-//     srand(seed);
-// 	::testing::InitGoogleTest(&argc, argv);	
-// 	auto ret = RUN_ALL_TESTS();
-// 	return ret;
-// }

@@ -17,12 +17,12 @@ __This repo is about some essential techniques in programming__
 
        - skiplist 普通侵入式跳表的实现
        - concurrent_skiplist 支持并发的侵入式跳表 ( 配合tools/lock )
-            - __TODO__ 当前仅支持并发插入，下一步增加erase
+            - TODO. 当前仅支持并发插入，下一步增加erase
 
 
 __性能对比：__
 
-__base line: 2945ms __  12vCPU in Alibaba-Cloud ECS_( insert 1048576 items into skiplist.)_
+__base line: 2945ms__  12 vCPU in Alibaba-Cloud ECS _( insert 1048576 items into skiplist.)_
 
 | threads |  concurrent skiplist | speed ratio |
 | :-----: |  :-----------------: | :---------: |
@@ -31,11 +31,11 @@ __base line: 2945ms __  12vCPU in Alibaba-Cloud ECS_( insert 1048576 items into 
 | 4	| 1382 ms |2.12|
 | 8	| 1002 ms |2.93|
 | 12	| 749   ms |3.93|
-​        	
+       	
 
  - __Blocking Queue__
 
-        - 没什么特点，双条件变量 + mutex
+    - 没什么特点，双条件变量 + mutex
 
 ### Tools
   - Lock 统一了独占锁和共享锁的接口

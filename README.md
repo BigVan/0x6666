@@ -24,7 +24,7 @@ __Performance__
 
 __Base line: 2945ms__  12 vCPU in Alibaba-Cloud ECS _( insert 1048576 items into skiplist.)_
 
-| threads |  concurrent skiplist | speed ratio |
+| threads |  concurrent skiplist | speedup ratio |
 | :-----: |  :-----------------: | :---------: |
 | 1       |  4312 ms |--|
 | 2		  |  2497 ms|1.18|
